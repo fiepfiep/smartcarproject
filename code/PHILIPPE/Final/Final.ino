@@ -6,7 +6,6 @@
 
 /*LIBS*/
 #include <Servo.h>
-
 #include <IRremote.h> // for IR
 #include <Wire.h> // for LCD
 #include <LiquidCrystal_PCF8574.h>  // for LCD
@@ -14,7 +13,8 @@
 #include "SR04.h" //ultrasonic
 #define TRIG_PIN A3  //ultrasonic
 #define ECHO_PIN A2  //ultrasonic
-#define PROXIMITY 20 //dist in cm to stop the car
+#define PROXIMITY1 15 //dist in cm to stop the car
+#define PROXIMITY2 30
 #define BUT1 0xFF6897
 #define BUT2 0xFF9867
 #define BUT3 0xFFB04F
@@ -35,10 +35,8 @@ const int SERVO_PIN = 11;
 /*globals*/
 int IR_MODE;
 int BT_CMD;
-
+char drivestate = 's'; // s stop f forward b backward r right l left
 char cmd = 0;
-
-int pos = 90;    // variable to store the servo position
 
 // car kinematics
 float leftspeed = 0;
@@ -51,8 +49,15 @@ decode_results results; //decoded IR character
 Servo myservo;  // create servo object to control a servo
 
 SR04 sr04 = SR04(ECHO_PIN, TRIG_PIN);
-long a;
+long a; //distance
+int d_l, d_m, d_r;
+//state machine
 
+int servostate = 'm';             // ledState used to set the LED
+unsigned long previous_millis1 = 0;        // will store last time LED was updated
+long TIME1 = 200;           // milliseconds of on-time
+unsigned long previous_millis2 = 0;        // will store last time LED was updated
+long TIME2 = 200;           // milliseconds of on-time
 
 void setup()
 {
@@ -61,7 +66,6 @@ void setup()
     pinMode(i, OUTPUT);
   }
   pinMode(SERVO_PIN, OUTPUT);
-
   Serial.begin(9600);
   Wire.begin();
   Wire.beginTransmission(0x27);
@@ -75,21 +79,19 @@ void setup()
   irrecv.enableIRIn(); // Start the receiver
   hc06.begin(9600);
   myservo.attach(SERVO_PIN);  // attaches the servo on pin; causing problems !!!!!!!!!
-
 }
-void loop() {
+
+void loop()
+{
   //decode IR, write to display
-  drive_controlled();
   irdecode();
   //call correct mode-function depending on IR signal
-
-
-
 }
 
 void irdecode()
 {
-  if (irrecv.decode(&results)) {
+  if (irrecv.decode(&results))
+  {
     Serial.println(results.value, HEX);
     irrecv.resume(); // Receive the next value
 
@@ -127,40 +129,193 @@ void irdecode()
   }
 }
 
-void drive_random() //drive randomly, avoid objects
+void drive_random()
 {
   while (1)
   {
-     stop();
+    irdecode();
+    look_around();
+    decide_direction();
+
+  }
+
+}
+void look_around()
+{
+  unsigned long current_millis1 = millis();
+  if ((current_millis1 - previous_millis1) > 500)
+  {
+    previous_millis1 = current_millis1;
+    switch (servostate)
+    {
+      case 'm':
+        {
+          measuredist();
+          myservo.write(150); //servo to right
+          d_m = a;
+          servostate = 'l'; //next state
+          break;
+        }
+      case 'l':
+        {
+          measuredist();
+          myservo.write(30); //servo to right
+          d_l = a;
+          servostate = 'r';
+          break;
+        }
+      case 'r':
+        {
+          measuredist();
+          myservo.write(90); //servo to right
+          d_r = a;
+          servostate = 'm';
+          break;
+        }
+      default:
+        {
+          break;
+        }
+    }
+  }
+}
+
+void decide_direction()
+{
+  unsigned long current_millis2 = millis();
+
+  if ((current_millis2 - previous_millis2) > 100)
+  {
+    previous_millis2 = current_millis2;
+    Serial.println(drivestate);
+    switch (drivestate)
+    {
+
+      case 'f':
+        {
+          if (d_m < 40 || d_l < 20 || d_r < 20)
+          {
+            (d_l < d_r) ? (right()) : (left());
+          }
+          if (d_m < 20)
+          {
+            backward();
+          }
+
+          break;
+        }
+      case 'b':
+        {
+          if (d_m > 50 && d_l > 20 && d_r > 20)
+          {
+            (d_l < d_r) ? (right()) : (left());
+          }
+          break;
+        }
+
+      case 'l':
+        {
+          if (d_m > 50 && d_l > 30 && d_r > 10 )
+          {
+            forward();
+          }
+          if (d_m < 10 || d_l < 20)
+          {
+            backward();
+          }
+          break;
+        }
+      case 'r':
+        {
+          if (d_m > 50 && d_l > 10 && d_r > 30 )
+          {
+            forward();
+          }
+          if (d_m < 10 || d_r < 20)
+          {
+            backward();
+          }
+          break;
+        }
+      case 's':
+        {
+          
+          if (d_m > 50 && d_l > 30 && d_r > 30 )
+          {
+            forward();
+          }
+        }
+      default:
+        {
+          break;
+        }
+    }
+  }
+}
+void drive_randomold() //drive randomly, avoid objects
+{
+  while (1)
+  {
+    stop();
     int d_l, d_m, d_r;
-    myservo.write(90);
-    delay(1000);
-    measuredist();
-    d_m = a;
-    myservo.write(120);
-    delay(1000);
+
+    myservo.write(150);
+    delay(200);
     measuredist();
     d_l = a;
-    myservo.write(90);
-    delay(1000);
+
+    myservo.write(30);
+    delay(200);
     measuredist();
     d_r = a;
 
+    myservo.write(90);
+    delay(200);
+    measuredist();
+    d_m = a;
 
-    if (d_l  < 30 )
+
+    if (d_m < 50 || d_r < 50 || d_l < 50)
     {
-      right();
-      delay(300);
+
+      if (d_m < 20 || d_l < 10 || d_r < 10)
+      {
+        backward();
+        delay(500);
+        if (d_l < d_r)
+        {
+          left();
+        }
+        else
+        {
+          right();
+        }
+        delay(600);
+        stop;
+      }
+      else if (d_r < d_l)
+      {
+        left();
+        delay(600);
+        stop();
+
+      }
+      else
+      {
+        right();
+        delay(600);
+        stop();
+      }
     }
-    if (d_r  < 30 )
+    else
     {
-      left();
-      delay(300);
+      forward();
+      delay(600);
+      stop();
     }
-    forward();
-    delay(500);
+
     irdecode();
-    break;
+
   }
 
 }
@@ -203,8 +358,27 @@ void drive_controlled() //drive bluetooth
 
 
     measuredist();
-    if (a < PROXIMITY)
+
+    if (a < 20 && drivestate != 's' && drivestate != 'b' )
+    {
+      Serial.println("too close");
+      Serial.println(a);
       stop();
+      delay(20);
+      backward();
+      delay(100);
+      stop();
+    }
+
+    if (a < 7 )
+    {
+      Serial.println("too close, going back");
+      Serial.println(a);
+      backward();
+      delay(200);
+      stop();
+    }
+
     irdecode();
   }
 }
@@ -215,39 +389,38 @@ void drive_assisted(); //drive bluetooth and avoid obstacles
 void calcmotorspeed()
 {
   control_motors(leftspeed, rightspeed);
-
 }
 
 void forward()
 {
-  leftspeed = 100;
-  rightspeed = 100;
+  leftspeed = 200;
+  rightspeed = 180;
   calcmotorspeed();
-
+  drivestate = 'f';
 }
 
 void backward()
 {
-  leftspeed = -50;
-  rightspeed = -50;
+  leftspeed = -140;
+  rightspeed = -150;
   calcmotorspeed();
-
+  drivestate = 'b';
 }
 
 void right()
 {
-  leftspeed = 150;
+  leftspeed = 160;
   rightspeed = 0;
   calcmotorspeed();
-
+  drivestate = 'r';
 }
 
 void left()
 {
-  rightspeed = 150;
+  rightspeed = 170;
   leftspeed = 0;
   calcmotorspeed();
-
+  drivestate = 'l';
 }
 
 void stop()
@@ -255,15 +428,13 @@ void stop()
   leftspeed = 0;
   rightspeed = 0;
   control_motors(0, 0);
-
+  drivestate = 's';
 }
 
 
 void control_motors(float left, float right)
 {
-  Serial.println("left,right");
-  Serial.println(left);
-  Serial.println(right);
+
 
   if (right > 0)
   {
