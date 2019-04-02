@@ -52,8 +52,10 @@ SR04 sr04 = SR04(ECHO_PIN, TRIG_PIN);
 long a; //distance
 int d_l, d_m, d_r;
 //state machine
-
-int servostate = 'm';             // ledState used to set the LED
+int servopos = 90;
+int servostate = 'm';
+int distances[5];
+// ledState used to set the LED
 unsigned long previous_millis1 = 0;        // will store last time LED was updated
 long TIME1 = 200;           // milliseconds of on-time
 unsigned long previous_millis2 = 0;        // will store last time LED was updated
@@ -138,48 +140,65 @@ void drive_random()
   {
     irdecode();
     look_around();
-    decide_direction();
-
+    
+    unsigned long current_millis3 = millis();
+    if ((current_millis3 - previous_millis3) > 200 && motorstate == 1)
+    {
+      previous_millis3 = current_millis3;
+      motorstate = 0;
+      control_motors(0, 0);
+    }
+    else if ((current_millis3 - previous_millis3) > 600 && motorstate == 0)
+    {
+      previous_millis3 = current_millis3;
+      motorstate = 1;
+      control_motors(leftspeed, rightspeed);
+    }
   }
 
 }
-void look_around()
+
+void look_around2()
 {
   unsigned long current_millis1 = millis();
-  if ((current_millis1 - previous_millis1) > 300)
+  if ((current_millis1 - previous_millis1) > 100)
   {
     previous_millis1 = current_millis1;
-    switch (servostate)
+    switch (servopos)
     {
       case 'm':
         {
           measuredist();
-          myservo.write(150); //servo to right
           d_m = a;
+
+          myservo.write(150); //servo to right
           servostate = 'l'; //next state
           break;
         }
       case 'l':
         {
           measuredist();
-          myservo.write(90); //servo to right
           d_l = a;
+          myservo.write(90); //servo to right
+
           servostate = 'n';
           break;
         }
       case 'n':
         {
           measuredist();
-          myservo.write(30); //servo to right
           d_m = a;
+          myservo.write(30); //servo to right
+
           servostate = 'r'; //next state
           break;
         }
       case 'r':
         {
           measuredist();
-          myservo.write(90); //servo to right
           d_r = a;
+          myservo.write(90); //servo to right
+
           servostate = 'm';
           break;
         }
@@ -188,98 +207,55 @@ void look_around()
           break;
         }
     }
+    decide_direction();
+
   }
 }
 
-void decide_direction()
+
+void look_around()
 {
-  unsigned long current_millis2 = millis();
-
-  if ((current_millis2 - previous_millis2) > 100)
+  unsigned long current_millis1 = millis();
+  if ((current_millis1 - previous_millis1) > 400)
   {
-    previous_millis2 = current_millis2;
-    Serial.println(drivestate);
-    switch (drivestate)
+    previous_millis1 = current_millis1;
+    switch (servostate)
     {
-
-      case 'f':
+      case 'm':
         {
-          if (d_m < 20 || d_l < 15 || d_r < 15)
-          {
-            backward();
-            break;
-          }
+          measuredist();
+          d_m = a;
 
-          else if (d_m < 40 || d_l < 30 || d_r < 30)
-          {
-            (d_l < d_r) ? (right()) : (left());
-            break;
-          }
-          else {
-            forward();
-          }
+          myservo.write(140); //servo to right
+          servostate = 'l'; //next state
           break;
         }
-      case 'b':
-        {
-          if (d_m > 30 && (d_l > 30 || d_r > 30))
-          {
-            (d_l < d_r) ? (right()) : (left());
-          }
-          else {
-            backward();
-          }
-          break;
-        }
-
       case 'l':
         {
-          if (d_m > 50 && d_l > 40 && d_r > 15 )
-          {
-            forward();
-            break;
-          }
-          else if (d_m < 10 || d_l < 20)
-          {
-            backward();
-          }
-          else {
-            left();
-          }
+          measuredist();
+          d_l = a;
+          myservo.write(90); //servo to right
 
+          servostate = 'n';
+          break;
+        }
+      case 'n':
+        {
+          measuredist();
+          d_m = a;
+          myservo.write(40); //servo to right
 
-
+          servostate = 'r'; //next state
           break;
         }
       case 'r':
         {
-          if (d_m > 50 && d_l > 15 && d_r > 40 )
-          {
-            forward();
-            break;
-          }
-          else if (d_m < 10 || d_r < 20)
-          {
-            backward();
-            break;
-          }
-          else {
-            right();
-          }
-          break;
-        }
-      case 's':
-        {
+          measuredist();
+          d_r = a;
+          myservo.write(90); //servo to right
 
-          if (d_m > 50 && d_l > 30 && d_r > 30 )
-          {
-            forward();
-            break;
-          }
-          else {
-            stop();
+          servostate = 'm';
 
-          }
           break;
         }
       default:
@@ -287,7 +263,96 @@ void decide_direction()
           break;
         }
     }
+    decide_direction();
+
   }
+}
+
+void decide_direction()
+{
+  //  unsigned long current_millis2 = millis();
+  //
+  //  if ((current_millis2 - previous_millis2) > 100)
+  //  {
+  //    previous_millis2 = current_millis2;
+
+  switch (drivestate)
+  {
+
+    case 'f':
+      {
+        if (d_m < 25 || d_l < 15 || d_r < 15)
+        {
+          backward();
+          break;
+        }
+
+        else if (d_m < 40 || d_l < 20 || d_r < 20)
+        {
+          (d_l < d_r) ? (right()) : (left());
+          break;
+        }
+        break;
+      }
+    case 'b':
+      {
+        if (d_m > 20 && (d_l > 30 || d_r > 30))
+        {
+          (d_l < d_r) ? (right()) : (left());
+        }
+
+        break;
+      }
+
+    case 'l':
+      {
+        if (d_m > 40 && d_l > 30 && d_r > 15 )
+        {
+          slow();
+          break;
+        }
+        else if (d_m < 10 || d_l < 20)
+        {
+          backward();
+        }
+
+
+        break;
+      }
+    case 'r':
+      {
+        if (d_m > 40 && d_l > 15 && d_r > 30 )
+        {
+          slow();
+          break;
+        }
+        else if (d_m < 10 || d_r < 20)
+        {
+          backward();
+          break;
+        }
+
+        break;
+      }
+    case 's':
+      {
+
+        if (d_m > 40 && d_l > 30 && d_r > 30 )
+        {
+          slow();
+          break;
+        }
+
+        
+        break;
+      }
+    default:
+      {
+        break;
+      }
+  }
+  Serial.println(drivestate);
+
 }
 void drive_randomold() //drive randomly, avoid objects
 {
@@ -346,7 +411,7 @@ void drive_randomold() //drive randomly, avoid objects
     }
     else
     {
-      forward();
+      slow();
       delay(600);
       stop();
     }
@@ -426,30 +491,21 @@ void drive_assisted(); //drive bluetooth and avoid obstacles
 
 void calcmotorspeed()
 {
-  unsigned long current_millis3 = millis();
+  control_motors(leftspeed, rightspeed);
+}
 
-  if ((current_millis3 - previous_millis3) > 50)
-  {
-    previous_millis3 = current_millis3;
-    if (motorstate == 0)
-    {
-      control_motors(leftspeed, rightspeed);
-      motorstate = 1;
-    }
-    else
-    { control_motors(0, 0);
-      motorstate = 0;
-    }
-
-
-  }
-
+void slow()
+{
+  leftspeed = 120;
+  rightspeed = 120;
+  calcmotorspeed();
+  drivestate = 'f';
 }
 
 void forward()
 {
-  leftspeed = 130;
-  rightspeed = 120;
+  leftspeed = 180;
+  rightspeed = 180;
   calcmotorspeed();
   drivestate = 'f';
 }
@@ -464,7 +520,7 @@ void backward()
 
 void right()
 {
-  leftspeed = 160;
+  leftspeed = 170;
   rightspeed = 0;
   calcmotorspeed();
   drivestate = 'r';
@@ -472,7 +528,7 @@ void right()
 
 void left()
 {
-  rightspeed = 170;
+  rightspeed = 180;
   leftspeed = 0;
   calcmotorspeed();
   drivestate = 'l';
