@@ -58,6 +58,9 @@ unsigned long previous_millis1 = 0;        // will store last time LED was updat
 long TIME1 = 200;           // milliseconds of on-time
 unsigned long previous_millis2 = 0;        // will store last time LED was updated
 long TIME2 = 200;           // milliseconds of on-time
+unsigned long previous_millis3 = 0;        // will store last time LED was updated
+long TIME3 = 200;           // milliseconds of on-time
+int motorstate = 0;
 
 void setup()
 {
@@ -143,7 +146,7 @@ void drive_random()
 void look_around()
 {
   unsigned long current_millis1 = millis();
-  if ((current_millis1 - previous_millis1) > 500)
+  if ((current_millis1 - previous_millis1) > 300)
   {
     previous_millis1 = current_millis1;
     switch (servostate)
@@ -159,9 +162,17 @@ void look_around()
       case 'l':
         {
           measuredist();
-          myservo.write(30); //servo to right
+          myservo.write(90); //servo to right
           d_l = a;
-          servostate = 'r';
+          servostate = 'n';
+          break;
+        }
+      case 'n':
+        {
+          measuredist();
+          myservo.write(30); //servo to right
+          d_m = a;
+          servostate = 'r'; //next state
           break;
         }
       case 'r':
@@ -193,57 +204,83 @@ void decide_direction()
 
       case 'f':
         {
-          if (d_m < 40 || d_l < 20 || d_r < 20)
-          {
-            (d_l < d_r) ? (right()) : (left());
-          }
-          if (d_m < 20)
+          if (d_m < 20 || d_l < 15 || d_r < 15)
           {
             backward();
+            break;
           }
 
+          else if (d_m < 40 || d_l < 30 || d_r < 30)
+          {
+            (d_l < d_r) ? (right()) : (left());
+            break;
+          }
+          else {
+            forward();
+          }
           break;
         }
       case 'b':
         {
-          if (d_m > 50 && d_l > 20 && d_r > 20)
+          if (d_m > 30 && (d_l > 30 || d_r > 30))
           {
             (d_l < d_r) ? (right()) : (left());
+          }
+          else {
+            backward();
           }
           break;
         }
 
       case 'l':
         {
-          if (d_m > 50 && d_l > 30 && d_r > 10 )
+          if (d_m > 50 && d_l > 40 && d_r > 15 )
           {
             forward();
+            break;
           }
-          if (d_m < 10 || d_l < 20)
+          else if (d_m < 10 || d_l < 20)
           {
             backward();
           }
+          else {
+            left();
+          }
+
+
+
           break;
         }
       case 'r':
         {
-          if (d_m > 50 && d_l > 10 && d_r > 30 )
+          if (d_m > 50 && d_l > 15 && d_r > 40 )
           {
             forward();
+            break;
           }
-          if (d_m < 10 || d_r < 20)
+          else if (d_m < 10 || d_r < 20)
           {
             backward();
+            break;
+          }
+          else {
+            right();
           }
           break;
         }
       case 's':
         {
-          
+
           if (d_m > 50 && d_l > 30 && d_r > 30 )
           {
             forward();
+            break;
           }
+          else {
+            stop();
+
+          }
+          break;
         }
       default:
         {
@@ -322,6 +359,7 @@ void drive_randomold() //drive randomly, avoid objects
 void drive_controlled() //drive bluetooth
 {
   myservo.write(90);
+  stop();
   while (1)
   {
     cmd = (char)hc06.read();
@@ -388,13 +426,30 @@ void drive_assisted(); //drive bluetooth and avoid obstacles
 
 void calcmotorspeed()
 {
-  control_motors(leftspeed, rightspeed);
+  unsigned long current_millis3 = millis();
+
+  if ((current_millis3 - previous_millis3) > 50)
+  {
+    previous_millis3 = current_millis3;
+    if (motorstate == 0)
+    {
+      control_motors(leftspeed, rightspeed);
+      motorstate = 1;
+    }
+    else
+    { control_motors(0, 0);
+      motorstate = 0;
+    }
+
+
+  }
+
 }
 
 void forward()
 {
-  leftspeed = 200;
-  rightspeed = 180;
+  leftspeed = 130;
+  rightspeed = 120;
   calcmotorspeed();
   drivestate = 'f';
 }
