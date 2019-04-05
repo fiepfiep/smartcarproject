@@ -118,7 +118,6 @@ void irdecode()
         lcd.home(); lcd.clear();
         lcd.print("mode 3: linetrack");
         Serial.println("mode 3: linetrack");
-
         break;
       case BUT4:
         lcd.home(); lcd.clear();
@@ -126,11 +125,51 @@ void irdecode()
         lcd.print("mode 4: BT assisted");
         break;
       case BUT0:
-        lcd.home(); lcd.clear();
-        Serial.println("halt");
-        lcd.print("halted");
+        halt();
         break;
+      case 0xFF629D:
+        Serial.println("forward");
+        forward();
+        lcd.home(); lcd.clear();
+        lcd.println("forward");
+        break;
+      case 0xFFA857:
+        lcd.home(); lcd.clear();
+        Serial.println("back");
+        lcd.print("back");
+        backward();
+        break;
+      case 0xFF22DD:
+        lcd.home(); lcd.clear();
+        Serial.println("left");
+        lcd.print("left");
+        left();
+        break;
+      case 0xFFC23D:
+        lcd.home(); lcd.clear();
+        Serial.println("right");
+        lcd.print("right");
+        right();
+        break;
+      case 0xFF02FD:
+
+        halt();
+        break;
+
     }
+  }
+}
+
+void halt()
+{
+  stop();
+  lcd.home(); lcd.clear();
+  Serial.println("halt");
+  lcd.print("halted");
+
+  while (1)
+  {
+    irdecode();
   }
 }
 
@@ -140,7 +179,7 @@ void drive_random()
   {
     irdecode();
     look_around();
-    
+
     unsigned long current_millis3 = millis();
     if ((current_millis3 - previous_millis3) > 200 && motorstate == 1)
     {
@@ -343,7 +382,7 @@ void decide_direction()
           break;
         }
 
-        
+
         break;
       }
     default:
