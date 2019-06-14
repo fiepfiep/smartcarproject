@@ -19,10 +19,11 @@ void loop(){
 
   double softTurn_ratio = 0.3; //turn at about 1 carpet tile (altran brussels office)
   double hardTurn_ratio = 0; //turn at about 1/2 carpet tile
-  float speed = 150;
+  float speed = 170;
 
   //drive circle counter clockwise
-  control_motors(round(softTurn_ratio * speed), speed);
+  //control_motors(round(softTurn_ratio * speed), speed);
+  control_motors(0, 150);
 
 }
 
