@@ -64,11 +64,22 @@ unsigned long previous_millis3 = 0;        // will store last time LED was updat
 long TIME3 = 200;           // milliseconds of on-time
 int motorstate = 0;
 
+//line tracking variables
+const int IR_LEFT = 2; //Pins used for line-detecting IR modules
+const int IR_MIDDLE = 4;
+const int IR_RIGHT = 3;
+bool operating = true; //show when the car is following the line and when it is completely lost
+unsigned long prev_time = 0;
+int ir_l, ir_m, ir_r; // inputs for line tracking
+
 void setup()
 {
   for (int i = 5; i < 11; i ++) //set motor pins as output
   {
     pinMode(i, OUTPUT);
+  }
+  for(int i = 2 ; i < 5; i++){ //set line-detecting IR's as input
+    pinMode(i, INPUT);
   }
   pinMode(SERVO_PIN, OUTPUT);
   Serial.begin(9600);
@@ -118,6 +129,7 @@ void irdecode()
         lcd.home(); lcd.clear();
         lcd.print("mode 3: linetrack");
         Serial.println("mode 3: linetrack");
+        follow_line();        
         break;
       case BUT4:
         lcd.home(); lcd.clear();
@@ -524,7 +536,137 @@ void drive_controlled() //drive bluetooth
     irdecode();
   }
 }
-void drive_line(); //track a line. Stop if no line found after some time
+
+void follow_line(){
+
+  while(1){
+
+    irdecode();
+
+    unsigned long current_time = millis();
+    while(current_time - prev_time > 5){
+      prev_time = current_time;
+      operating = drive_line();
+      if (!operating){ // Car is stopped
+            lcd.home();
+            lcd.clear();
+            lcd.print("Car is stopped");
+            operating = true;
+            while (1){
+              irdecode();
+            }
+          }
+    }
+  }
+
+}
+
+bool drive_line(){ //track a line. Stop if no line found after some time
+  //NOTE: At this point, the line is continuously derivable
+
+  double softTurn_ratio = 0; //0.3 = turn at about 1 carpet tile (altran brussels office floor carpet) at speed ???
+  double hardTurn_ratio = -0.5; // negative to cause more friction for turning
+  int speed = 130;
+  int speedHardTurn = 160; // larger than forward speed for smaller turn radius
+
+  int line = 1; // defines the color of the line: 1 -> black detected 0 -> white detected
+  int no_line = 0;
+
+  bool back_on_track; //when car gets lost and finds the line again
+
+  
+
+
+  //Get detections
+  ir_l = digitalRead(IR_LEFT);
+  ir_m = digitalRead(IR_MIDDLE);
+  ir_r = digitalRead(IR_RIGHT);
+
+  //Turn based on measurements
+  if(ir_l == no_line && ir_m == line && ir_r == no_line){
+    // continue straight ahead
+    control_motors(speed, speed);
+  }
+  else if (ir_l == line && ir_m == line && ir_r == line){
+    // Stop
+    control_motors(0, 0);
+    return false;
+  }
+  else if (ir_l == line && ir_m == line && ir_r == no_line){
+    // soft turn left
+    control_motors(round(softTurn_ratio * speed), speed);
+  }
+  else if (ir_l == line && ir_m == no_line && ir_r == no_line){
+    // hard turn left
+    control_motors(round(hardTurn_ratio * speedHardTurn), speedHardTurn);
+  }
+  else if (ir_l == no_line && ir_m == line && ir_r == line){
+    // soft turn right
+    control_motors(speed, round(softTurn_ratio * speed));
+  }
+  else if (ir_l == no_line && ir_m == no_line && ir_r == line){
+    // hard turn right
+    control_motors(speedHardTurn, round(hardTurn_ratio * speedHardTurn));
+  }
+  else if (ir_l == no_line && ir_m == no_line && ir_r == no_line){
+    // car is lost
+    control_motors(0, 0);
+    back_on_track = Backup_for_line();
+    if(!back_on_track){
+      lcd.home();
+      lcd.clear();
+      lcd.print("Completely lost...");
+      Serial.println("Car is completely lost...");
+      delay(2000);
+      return false;
+    }
+  }
+  else if (ir_l == line && ir_m == no_line && ir_r == line){
+    // corrupt state
+    control_motors(0, 0);
+    lcd.home();
+    lcd.clear();
+    lcd.print("ERROR, split line");
+    Serial.println("ERROR: split line detected");
+    delay(2000);
+    return false;
+  }
+
+  return true;
+} 
+
+bool Backup_for_line(){
+  //Go in reverse till line is found, or till timeout
+
+  int speed = -100;
+
+  int line = 1; // defines the color of the line
+  int no_line = 0;
+
+  bool line_found = false;
+  
+  unsigned long timeout = 10000; //10s
+
+  unsigned long time = millis();
+  while((millis() - time < timeout) && !line_found){ //TODO: interrupt for changing mode with remote control
+    //Go backwards
+    control_motors(speed,speed);
+    delay(5);
+    control_motors(0,0);
+
+    //check for line
+    ir_l = digitalRead(IR_LEFT);
+    ir_m = digitalRead(IR_MIDDLE);
+    ir_r = digitalRead(IR_RIGHT);
+
+    if(ir_l == line || ir_m == line || ir_r == line){
+      line_found = true;
+    }
+  }
+
+  return line_found;
+}
+
 void drive_assisted(); //drive bluetooth and avoid obstacles
 
 
@@ -596,7 +738,7 @@ void control_motors(float left, float right)
   {
     digitalWrite(IN1, LOW);
     digitalWrite(IN2, HIGH);
-    analogWrite(ENA, right);
+    analogWrite(ENA, -right);
   }
   if (left > 0)
   {
@@ -609,7 +751,7 @@ void control_motors(float left, float right)
   {
     digitalWrite(IN3, HIGH);
     digitalWrite(IN4, LOW);
-    analogWrite(ENB, left);
+    analogWrite(ENB, -left);
   }
 }
 

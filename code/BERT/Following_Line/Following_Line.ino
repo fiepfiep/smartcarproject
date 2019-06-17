@@ -49,7 +49,7 @@ void setup()
 void loop(){
 
 	unsigned long current_time = millis();
-	while(true && (current_time - prev_time > 5)){ // replace the "true" in the while-loop by "operating"
+	while(current_time - prev_time > 5){
       prev_time = current_time;
 	  	operating = drive_line();
 	}
@@ -142,6 +142,7 @@ bool drive_line(){ //track a line. Stop if no line found after some time
     	lcd.clear();
     	lcd.print("Completely lost...");
     	Serial.println("Car is completely lost...");
+    	delay(2000);
     	return false;
     }
   }
@@ -168,7 +169,7 @@ bool Backup_for_line(){
 
 	bool line_found = false;
 	
-	unsigned long timeout = 10000; //10s
+	unsigned long timeout = 3000; //3s
 
 	unsigned long time = millis();
 	while((millis() - time < timeout) && !line_found){
