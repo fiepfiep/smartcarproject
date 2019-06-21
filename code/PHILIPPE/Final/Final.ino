@@ -539,23 +539,41 @@ void drive_controlled() //drive bluetooth
 
 void follow_line(){
 
+  bool blocking_object; //indicates is the path if free of objects
+
+  myservo.write(90); // set the ultrasonic sensor to front direction
+
   while(1){
 
     irdecode();
 
+    //Get blocking object
+    measuredist();
+    blocking_object = a > 12 ? false : true;
+
     unsigned long current_time = millis();
-    while(current_time - prev_time > 5){
+    while(current_time - prev_time > 5 && !blocking_object){
       prev_time = current_time;
       operating = drive_line();
       if (!operating){ // Car is stopped
             lcd.home();
             lcd.clear();
-            lcd.print("Car is stopped");
+            lcd.print("Car has stopped");
             operating = true;
             while (1){
               irdecode();
             }
           }
+    }
+    if(blocking_object){
+      //Path is blocked -> pause
+      /*
+      lcd.home();
+      lcd.clear();
+      lcd.print("Path is blocked");
+      */
+      stop();      
+      delay(1000);
     }
   }
 
@@ -572,15 +590,14 @@ bool drive_line(){ //track a line. Stop if no line found after some time
   int line = 1; // defines the color of the line: 1 -> black detected 0 -> white detected
   int no_line = 0;
 
-  bool back_on_track; //when car gets lost and finds the line again
-
-  
+  bool back_on_track; //when car gets lost and finds the line again 
 
 
   //Get detections
   ir_l = digitalRead(IR_LEFT);
   ir_m = digitalRead(IR_MIDDLE);
   ir_r = digitalRead(IR_RIGHT);
+
 
   //Turn based on measurements
   if(ir_l == no_line && ir_m == line && ir_r == no_line){
@@ -645,7 +662,7 @@ bool Backup_for_line(){
 
   bool line_found = false;
   
-  unsigned long timeout = 10000; //10s
+  unsigned long timeout = 3000; //3s
 
   unsigned long time = millis();
   while((millis() - time < timeout) && !line_found){ //TODO: interrupt for changing mode with remote control
